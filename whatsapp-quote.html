@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sahm Shipping — Quote & WhatsApp Contact</title>
+  <style>
+    :root{
+      --bg:#f7fafc; --card:#ffffff; --accent:#0066cc; --muted:#6b7280;
+      --success:#10b981;
+      font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    body{margin:0;background:var(--bg);color:#111827;padding:24px;display:flex;align-items:center;justify-content:center;min-height:100vh;}
+    .card{background:var(--card);padding:20px;border-radius:12px;box-shadow:0 4px 14px rgba(2,6,23,0.08);max-width:680px;width:100%}
+    h1{margin:0 0 6px;font-size:20px}
+    p.lead{margin:0 0 16px;color:var(--muted)}
+    .row{display:flex;gap:12px}
+    .field{margin-bottom:12px}
+    label{display:block;font-size:13px;margin-bottom:6px;color:var(--muted)}
+    input[type="text"], input[type="number"], select{
+      width:100%;padding:10px;border-radius:8px;border:1px solid #e6e9ef;font-size:14px;box-sizing:border-box;
+    }
+    .inline{display:flex;gap:8px}
+    .half{flex:1}
+    .small{width:120px}
+    .result{background:#f1f5f9;padding:12px;border-radius:8px;margin-top:8px;font-size:14px}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;border:0;background:var(--accent);color:white;font-weight:600;cursor:pointer}
+    .btn.ghost{background:transparent;color:var(--accent);border:1px solid rgba(0,102,204,0.12)}
+    .btn:disabled{opacity:0.6;cursor:not-allowed}
+    .note{font-size:13px;color:var(--muted);margin-top:8px}
+    footer{margin-top:12px;font-size:13px;color:var(--muted)}
+    .flex-between{display:flex;justify-content:space-between;align-items:center}
+  </style>
+</head>
+<body>
+  <main class="card" role="main">
+    <div class="flex-between">
+      <div>
+        <h1>Sahm Shipping — Quick Quote</h1>
+        <p class="lead">Enter destination and parcel details. Then contact us by WhatsApp with one tap.</p>
+      </div>
+    </div>
+
+    <form id="quoteForm" onsubmit="return false;">
+      <div class="field">
+        <label for="country">Destination country</label>
+        <input id="country" name="country" type="text" placeholder="e.g. United Arab Emirates" required />
+      </div>
+
+      <div class="row">
+        <div class="field half">
+          <label for="weight">Weight (kg)</label>
+          <input id="weight" name="weight" type="number" min="0" step="0.01" placeholder="e.g. 2.5" required />
+        </div>
+        <div class="field half">
+          <label for="unit">Weight unit</label>
+          <select id="unit" name="unit" aria-label="weight unit">
+            <option value="kg" selected>kg</option>
+            <option value="lb">lb</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:6px">
+        <div class="field small">
+          <label for="length">Length (cm)</label>
+          <input id="length" type="number" min="0" step="0.1" placeholder="L" />
+        </div>
+        <div class="field small">
+          <label for="width">Width (cm)</label>
+          <input id="width" type="number" min="0" step="0.1" placeholder="W" />
+        </div>
+        <div class="field small">
+          <label for="height">Height (cm)</label>
+          <input id="height" type="number" min="0" step="0.1" placeholder="H" />
+        </div>
+      </div>
+
+      <div id="calc" class="result" aria-live="polite">
+        Volumetric weight: <span id="volumetric">—</span> kg · Actual weight: <span id="actual">—</span> kg · Billable weight: <strong id="billable">—</strong> kg
+      </div>
+
+      <div style="margin-top:12px">
+        <button id="waBtn" class="btn" type="button" disabled style="display:none;">
+          Contact via WhatsApp
+        </button>
+        <button id="copyBtn" class="btn ghost" type="button" style="display:none;margin-left:8px;">
+          Copy message
+        </button>
+      </div>
+
+      <p class="note">Tip: If you are on desktop, clicking will open WhatsApp Web. Make sure you have the company phone number configured below.</p>
+      <footer>Volumetric formula used: (L × W × H) / 5000 (cm → kg). You can change divisor if needed.</footer>
+    </form>
+  </main>
+
+  <script>
+    // CONFIG: set your company WhatsApp number in international format, no plus signs or spaces.
+    // Example: for +966550701797 set COMPANY_PHONE = "966550701797"
+    const COMPANY_PHONE = "966550701797";
+
+    const form = document.getElementById('quoteForm');
+    const countryEl = document.getElementById('country');
+    const weightEl = document.getElementById('weight');
+    const unitEl = document.getElementById('unit');
+    const lengthEl = document.getElementById('length');
+    const widthEl = document.getElementById('width');
+    const heightEl = document.getElementById('height');
+
+    const volumetricEl = document.getElementById('volumetric');
+    const actualEl = document.getElementById('actual');
+    const billableEl = document.getElementById('billable');
+    const waBtn = document.getElementById('waBtn');
+    const copyBtn = document.getElementById('copyBtn');
+
+    const VOLUMETRIC_DIVISOR = 5000; // common divisor for cm -> kg. Adjust per company policy.
+
+    function toKg(value, unit){
+      if (!value) return 0;
+      const v = Number(value);
+      if (isNaN(v)) return 0;
+      if (unit === 'kg') return v;
+      // lb -> kg
+      return v * 0.45359237;
+    }
+
+    function compute() {
+      const country = (countryEl.value || "").trim();
+      const weightRaw = weightEl.value ? Number(weightEl.value) : NaN;
+      const unit = unitEl.value || 'kg';
+      const length = Number(lengthEl.value || 0);
+      const width = Number(widthEl.value || 0);
+      const height = Number(heightEl.value || 0);
+
+      const actualKg = toKg(weightRaw, unit);
+      let volumetricKg = 0;
+
+      if (length > 0 && width > 0 && height > 0) {
+        volumetricKg = (length * width * height) / VOLUMETRIC_DIVISOR;
+      }
+
+      const billable = Math.max(actualKg || 0, volumetricKg || 0);
+
+      volumetricEl.textContent = volumetricKg ? volumetricKg.toFixed(2) : "—";
+      actualEl.textContent = actualKg ? actualKg.toFixed(2) : "—";
+      billableEl.textContent = billable ? billable.toFixed(2) : "—";
+
+      const valid = country !== "" && !isNaN(actualKg) && actualKg > 0;
+      // Show the WA button only when core fields are valid. Dimensions optional.
+      if (valid) {
+        waBtn.style.display = "inline-flex";
+        waBtn.disabled = false;
+        copyBtn.style.display = "inline-flex";
+      } else {
+        waBtn.style.display = "none";
+        copyBtn.style.display = "none";
+      }
+
+      return {
+        country, actualKg, volumetricKg, billable, length, width, height
+      };
+    }
+
+    function buildMessage({country, actualKg, volumetricKg, billable, length, width, height}) {
+      const l = length > 0 ? `${length} cm` : "N/A";
+      const w = width > 0 ? `${width} cm` : "N/A";
+      const h = height > 0 ? `${height} cm` : "N/A";
+
+      return `Hello Sahm Shipping,\n\nI want a shipping quote to: ${country}\n\nParcel details:\n- Weight: ${actualKg ? actualKg.toFixed(2) + " kg" : "—"}\n- Dimensions (L×W×H): ${l} × ${w} × ${h}\n- Volumetric weight: ${volumetricKg ? volumetricKg.toFixed(2) + " kg" : "—"}\n- Billable weight: ${billable ? billable.toFixed(2) + " kg" : "—"}\n\nPlease advise the best shipping option and estimated cost. Thank you.`;
+    }
+
+    function openWhatsApp(message) {
+      const text = encodeURIComponent(message);
+      if (!COMPANY_PHONE || COMPANY_PHONE === "REPLACE_WITH_PHONE_NUMBER") {
+        alert("Please configure COMPANY_PHONE in the page's script before using the WhatsApp button. The message has been copied to your clipboard instead.");
+        copyToClipboard(message);
+        return;
+      }
+      // wa.me link: works on web & mobile (phone in international format without +)
+      const waUrl = `https://wa.me/${COMPANY_PHONE}?text=${text}`;
+      // Open in new tab/window
+      window.open(waUrl, '_blank');
+    }
+
+    function copyToClipboard(text) {
+      navigator.clipboard?.writeText(text).then(() => {
+        alert("Message copied to clipboard.");
+      }).catch(()=> {
+        // fallback
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        alert("Message copied to clipboard.");
+      });
+    }
+
+    // events
+    [countryEl, weightEl, unitEl, lengthEl, widthEl, heightEl].forEach(el => {
+      el.addEventListener('input', compute);
+    });
+
+    waBtn.addEventListener('click', () => {
+      const data = compute();
+      const message = buildMessage(data);
+      openWhatsApp(message);
+    });
+
+    copyBtn.addEventListener('click', () => {
+      const data = compute();
+      const message = buildMessage(data);
+      copyToClipboard(message);
+    });
+
+    // initial compute
+    compute();
+  </script>
+</body>
+</html>
