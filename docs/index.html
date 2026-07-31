@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>سهم للشحن — طلب سعر وتواصل عبر واتساب</title>
+  <style>
+    :root{
+      --bg:#f7fafc; --card:#ffffff; --accent:#0066cc; --muted:#6b7280;
+      --success:#10b981;
+      font-family:system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, 'Noto Nastaliq Urdu', 'Almarai', 'Tajawal', 'Cairo';
+    }
+    body{margin:0;background:var(--bg);color:#111827;padding:24px;display:flex;align-items:center;justify-content:center;min-height:100vh;font-size:16px}
+    .card{background:var(--card);padding:20px;border-radius:12px;box-shadow:0 4px 14px rgba(2,6,23,0.08);max-width:680px;width:100%}
+    h1{margin:0 0 6px;font-size:22px}
+    p.lead{margin:0 0 16px;color:var(--muted)}
+    .row{display:flex;gap:12px}
+    .field{margin-bottom:12px}
+    label{display:block;font-size:14px;margin-bottom:6px;color:var(--muted)}
+    input[type="text"], input[type="number"], select{
+      width:100%;padding:10px;border-radius:8px;border:1px solid #e6e9ef;font-size:15px;box-sizing:border-box;text-align:right
+    }
+    .inline{display:flex;gap:8px}
+    .half{flex:1}
+    .small{width:120px}
+    .result{background:#f1f5f9;padding:12px;border-radius:8px;margin-top:8px;font-size:15px}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;border:0;background:var(--accent);color:white;font-weight:700;cursor:pointer}
+    .btn.ghost{background:transparent;color:var(--accent);border:1px solid rgba(0,102,204,0.12)}
+    .btn:disabled{opacity:0.6;cursor:not-allowed}
+    .note{font-size:14px;color:var(--muted);margin-top:8px}
+    footer{margin-top:12px;font-size:13px;color:var(--muted)}
+    .flex-between{display:flex;justify-content:space-between;align-items:center}
+  </style>
+</head>
+<body>
+  <main class="card" role="main">
+    <div class="flex-between">
+      <div>
+        <h1>سهم للشحن — طلب سعر سريع</h1>
+        <p class="lead">ادخل بلد الوصول ومواصفات الطرد ثم تواصل معنا عبر واتساب بضغطة واحدة.</p>
+      </div>
+    </div>
+
+    <form id="quoteForm" onsubmit="return false;">
+      <div class="field">
+        <label for="country">بلد الوجهة</label>
+        <input id="country" name="country" type="text" placeholder="مثال: الامارات العربية المتحدة" required />
+      </div>
+
+      <div class="row">
+        <div class="field half">
+          <label for="weight">الوزن</label>
+          <input id="weight" name="weight" type="number" min="0" step="0.01" placeholder="مثال: 2.5" required />
+        </div>
+        <div class="field half">
+          <label for="unit">وحدة الوزن</label>
+          <select id="unit" name="unit" aria-label="weight unit">
+            <option value="kg" selected>كغ (kg)</option>
+            <option value="lb">رطل (lb)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:6px;flex-wrap:wrap">
+        <div class="field small">
+          <label for="length">الطول (سم)</label>
+          <input id="length" type="number" min="0" step="0.1" placeholder="L" />
+        </div>
+        <div class="field small">
+          <label for="width">العرض (سم)</label>
+          <input id="width" type="number" min="0" step="0.1" placeholder="W" />
+        </div>
+        <div class="field small">
+          <label for="height">الارتفاع (سم)</label>
+          <input id="height" type="number" min="0" step="0.1" placeholder="H" />
+        </div>
+      </div>
+
+      <div id="calc" class="result" aria-live="polite">
+        الوزن الحجمي: <span id="volumetric">—</span> كغ · الوزن الفعلي: <span id="actual">—</span> كغ · الوزن القابل للفوترة: <strong id="billable">—</strong> كغ
+      </div>
+
+      <div style="margin-top:12px">
+        <button id="waBtn" class="btn" type="button" disabled style="display:none;">
+          التواصل عبر واتساب
+        </button>
+        <button id="copyBtn" class="btn ghost" type="button" style="display:none;margin-left:8px;color:var(--accent);">
+          نسخ الرسالة
+        </button>
+      </div>
+
+      <p class="note">ملاحظة: على سطح المكتب سيتم فتح WhatsApp Web. سيتم إرسال الرسالة إلى رقم الشركة المحدد.</p>
+      <footer>قانون الوزن الحجمي المستخدم: (الطول × العرض × الارتفاع) ÷ 5000. يمكن تغييره حسب سياسة الشحن.</footer>
+    </form>
+  </main>
+
+  <script>
+    // تهيئة: ضع رقم واتساب شركتك بصيغة دولية بدون علامة + أو فراغات.
+    // مثال: للرقم +966550701797 اكتب COMPANY_PHONE = "966550701797"
+    const COMPANY_PHONE = "966550701797";
+
+    const form = document.getElementById('quoteForm');
+    const countryEl = document.getElementById('country');
+    const weightEl = document.getElementById('weight');
+    const unitEl = document.getElementById('unit');
+    const lengthEl = document.getElementById('length');
+    const widthEl = document.getElementById('width');
+    const heightEl = document.getElementById('height');
+
+    const volumetricEl = document.getElementById('volumetric');
+    const actualEl = document.getElementById('actual');
+    const billableEl = document.getElementById('billable');
+    const waBtn = document.getElementById('waBtn');
+    const copyBtn = document.getElementById('copyBtn');
+
+    const VOLUMETRIC_DIVISOR = 5000; // عامل التحويل من سم^3 إلى كغ
+
+    function toKg(value, unit){
+      if (!value) return 0;
+      const v = Number(value);
+      if (isNaN(v)) return 0;
+      if (unit === 'kg') return v;
+      // رطل -> كغ
+      return v * 0.45359237;
+    }
+
+    function compute() {
+      const country = (countryEl.value || "").trim();
+      const weightRaw = weightEl.value ? Number(weightEl.value) : NaN;
+      const unit = unitEl.value || 'kg';
+      const length = Number(lengthEl.value || 0);
+      const width = Number(widthEl.value || 0);
+      const height = Number(heightEl.value || 0);
+
+      const actualKg = toKg(weightRaw, unit);
+      let volumetricKg = 0;
+
+      if (length > 0 && width > 0 && height > 0) {
+        volumetricKg = (length * width * height) / VOLUMETRIC_DIVISOR;
+      }
+
+      const billable = Math.max(actualKg || 0, volumetricKg || 0);
+
+      volumetricEl.textContent = volumetricKg ? volumetricKg.toFixed(2) : "—";
+      actualEl.textContent = actualKg ? actualKg.toFixed(2) : "—";
+      billableEl.textContent = billable ? billable.toFixed(2) : "—";
+
+      const valid = country !== "" && !isNaN(actualKg) && actualKg > 0;
+      // أظهر زر واتساب فقط عندما تكون الحقول الأساسية صحيحة.
+      if (valid) {
+        waBtn.style.display = "inline-flex";
+        waBtn.disabled = false;
+        copyBtn.style.display = "inline-flex";
+      } else {
+        waBtn.style.display = "none";
+        copyBtn.style.display = "none";
+      }
+
+      return {
+        country, actualKg, volumetricKg, billable, length, width, height
+      };
+    }
+
+    function buildMessage({country, actualKg, volumetricKg, billable, length, width, height}) {
+      const l = length > 0 ? `${length} سم` : "N/A";
+      const w = width > 0 ? `${width} سم` : "N/A";
+      const h = height > 0 ? `${height} سم` : "N/A";
+
+      return `السلام عليكم،\n\nأود طلب سعر شحن إلى: ${country}\n\nمواصفات الطرد:\n- الوزن: ${actualKg ? actualKg.toFixed(2) + " كغ" : "—"}\n- الأبعاد (ط×ع×ا): ${l} × ${w} × ${h}\n- الوزن الحجمي: ${volumetricKg ? volumetricKg.toFixed(2) + " كغ" : "—"}\n- الوزن القابل للفوترة: ${billable ? billable.toFixed(2) + " كغ" : "—"}\n\nالرجاء تزويدي بخيار الشحن وتكلفة التقديرية. شكراً.`;
+    }
+
+    function openWhatsApp(message) {
+      const text = encodeURIComponent(message);
+      if (!COMPANY_PHONE || COMPANY_PHONE === "REPLACE_WITH_PHONE_NUMBER") {
+        alert("من فضلك قم بتكوين رقم الشركة داخل السكربت قبل استخدام زر واتساب. تم نسخ الرسالة بدلاً من ذلك.");
+        copyToClipboard(message);
+        return;
+      }
+      const waUrl = `https://wa.me/${COMPANY_PHONE}?text=${text}`;
+      window.open(waUrl, '_blank');
+    }
+
+    function copyToClipboard(text) {
+      navigator.clipboard?.writeText(text).then(() => {
+        alert("تم نسخ الرسالة إلى الحافظة.");
+      }).catch(()=> {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        alert("تم نسخ الرسالة إلى الحافظة.");
+      });
+    }
+
+    // الأحداث
+    [countryEl, weightEl, unitEl, lengthEl, widthEl, heightEl].forEach(el => {
+      el.addEventListener('input', compute);
+    });
+
+    waBtn.addEventListener('click', () => {
+      const data = compute();
+      const message = buildMessage(data);
+      openWhatsApp(message);
+    });
+
+    copyBtn.addEventListener('click', () => {
+      const data = compute();
+      const message = buildMessage(data);
+      copyToClipboard(message);
+    });
+
+    // حساب أولي
+    compute();
+  </script>
+</body>
+</html>
